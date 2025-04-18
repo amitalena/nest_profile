@@ -12,6 +12,8 @@ import {
     Put,
     Delete,
     Param,
+    UseInterceptors,
+    UploadedFile,
 } from '@nestjs/common';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { LoginUserDto } from '../user/dto/login-user.dto';
@@ -19,6 +21,8 @@ import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { UserService } from '../user/user.service';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { multerOptions } from './multer.config';
 
 @Controller('auth')
 export class AuthController {
@@ -31,11 +35,31 @@ export class AuthController {
     getTest() {
         return { message: 'Auth module is working!' };
     }
-
     @Post('register')
-    async register(@Body() createUserDto: CreateUserDto) {
-        const user = await this.userService.create(createUserDto);
-        return { message: 'User registered successfully', user };
+    @UseInterceptors(FileInterceptor('profileImage', multerOptions))
+    async registerUser(
+        @UploadedFile() file: Express.Multer.File,
+        @Body() createUserDto: CreateUserDto,
+    ) {
+        const imagePath: string | undefined = file
+            ? `uploads/profile-images/${file.filename}`
+            : undefined;
+
+        return this.userService.create({ ...createUserDto, profileImage: imagePath });
+    }
+    @Put('update-profile')
+    @UseGuards(JwtAuthGuard)
+    @UseInterceptors(FileInterceptor('profileImage', multerOptions))
+    async updateProfile(
+        @UploadedFile() file: Express.Multer.File,
+        @Body() updateUserDto: any,
+        @Req() req: any,
+    ) {
+        const imagePath = file ? file.filename : null;
+        return this.userService.update(req.user.userId, {
+            ...updateUserDto,
+            profileImage: imagePath,
+        });
     }
 
     @Post('login')
